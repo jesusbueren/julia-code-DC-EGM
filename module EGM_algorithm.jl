@@ -1,34 +1,41 @@
-module EGM_algorithm 
-    export EGM_retired,EGM_worker,upper_envelope,upper_envelope_new
-    using Dierckx
-    include("module model_parameter.jl")
-    include("module utility_fcts.jl")
-    using .utility_fcts
-    using .model_parameter
+
     
-    function EGM_retired(pol_c:: Spline1D,V:: Spline1D)
+    function EGM_retired(pol_c:: Spline1D,V:: Spline1D,params::ModelParameter)
+        # Unpack parameters
+        nkk=params.nkk
+        A_grid = params.A_grid
+        R= params.R
+        β= params.β
+
         c_j=zeros(nkk)
         v_j=zeros(nkk)
         m_grid=zeros(nkk)
-        c_j=inv_u_prime.(β*R*u_prime.(pol_c(A_grid.*R)))
-        v_j=u.(c_j,zeros(Int64,nkk))+β*V(A_grid.*R)
+        c_j=inv_u_prime.(β*R*u_prime.(pol_c(A_grid.*R),Ref(params)),Ref(params))
+        v_j=u.(c_j,zeros(Int64,nkk),Ref(params))+β*V(A_grid.*R)
         m_grid=c_j.+A_grid
         pol_c_new=Spline1D(m_grid,c_j,k=1,bc="extrapolate")
         V_new=Spline1D(m_grid,v_j,k=1,bc="extrapolate")
         return pol_c_new,V_new,m_grid,v_j
     end
     
-    function EGM_worker(pol_c_d::Vector{Any},V_d::Vector{Any})
+    function EGM_worker(pol_c_d::Vector{Any},V_d::Vector{Any},params::ModelParameter)
+        # Unpack parameters
+        nkk=params.nkk
+        A_grid = params.A_grid
+        R= params.R
+        β= params.β
+        y= params.y
+
         c_j=zeros(nkk)
         v_j=zeros(nkk)
         m_grid=zeros(nkk)
         for (j_l,a) in enumerate(A_grid)
             if V_d[2](R*a+y)>V_d[1](R*a+y) 
-                c_j[j_l]=inv_u_prime(β*R*u_prime(pol_c_d[2](a*R+y)))
-                v_j[j_l]=u(c_j[j_l],1)+β*R*(V_d[2](a*R+y))
+                c_j[j_l]=inv_u_prime(β*R*u_prime(pol_c_d[2](a*R+y),params),params)
+                v_j[j_l]=u(c_j[j_l],1,params)+β*R*(V_d[2](a*R+y))
             else
-                c_j[j_l]=inv_u_prime(β*R*u_prime(pol_c_d[1](a*R+y)))
-                v_j[j_l]=u(c_j[j_l],1)+β*(V_d[1](a*R+y))
+                c_j[j_l]=inv_u_prime(β*R*u_prime(pol_c_d[1](a*R+y),params),params)
+                v_j[j_l]=u(c_j[j_l],1,params)+β*(V_d[1](a*R+y))
             end
             m_grid[j_l]=c_j[j_l]+a
         end
@@ -37,9 +44,11 @@ module EGM_algorithm
 
 
 
-    function upper_envelope(c::Vector{Float64}, v::Vector{Float64}, m_grid::Vector{Float64})
-        ind = ones(Int, length(m_grid))  # 1 means keep, 0 means discard
-        nkk = length(m_grid)
+    function upper_envelope(c::Vector{Float64}, v::Vector{Float64}, m_grid::Vector{Float64},params::ModelParameter)
+        # Unpack parameters
+        nkk=params.nkk
+        ind = ones(Int, nkk)  # 1 means keep, 0 means discard
+
 
         # Arrays to store extra M_star points and their interpolated values
         m_star_list = Float64[]
@@ -60,7 +69,7 @@ module EGM_algorithm
                 closest += step
             end
 
-            α1 = u_prime(c[closest])
+            α1 = u_prime(c[closest],params)
             α2 = v[closest] - α1 * m_grid[closest]
             return α1 * m_grid[target] + α2
         end
@@ -110,8 +119,8 @@ module EGM_algorithm
                 trim!(i,:left)
 
                 #Compute intersection
-                α1_1=u_prime(c[limit_left])
-                α1_2=u_prime(c[limit_right])
+                α1_1=u_prime(c[limit_left],params)
+                α1_2=u_prime(c[limit_right],params)
                 α2_1=v[limit_left] - α1_1 * m_grid[limit_left]
                 α2_2=v[limit_right] - α1_2 * m_grid[limit_right]
                 M_star=(α2_2-α2_1)/(α1_1-α1_2)
@@ -171,4 +180,3 @@ module EGM_algorithm
         return pol_c_new, V_new
     end
 
-end
