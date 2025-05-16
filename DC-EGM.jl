@@ -1,5 +1,5 @@
 
-using Dierckx, Plots
+using Dierckx, Plots, Debugger
 
 include("module model_parameter.jl")
 params=ModelParameter()
@@ -31,7 +31,7 @@ function policy_fct(params::ModelParameter)
     v_fct_d=Array{Any}(undef,T,2)
 
     for t=T:-1:1 #backward induction
-    println(t)
+        println(t)
         for sₜ ∈ [0,1] #retired or not
             if sₜ==0  #retired  
                 if t==T 
@@ -81,13 +81,13 @@ end
 
 c_fct_r,v_fct_r,c_fct_d,v_fct_d=policy_fct(params)
 
-t=params.T-2
+t=15
 dₜ=1
-scatter(params.A_grid,c_fct_d[1,dₜ+1].(params.A_grid),label="v_d",color=:black,markersize=2)
-scatter!(params.A_grid,c_fct_d[10,dₜ+1].(params.A_grid),label="v_d",color=:red,markersize=2)
-scatter!(params.A_grid,c_fct_d[18,dₜ+1].(params.A_grid),label="v_d",color=:blue,markersize=2)
-xlims!(120,400)
-ylims!(20,30)
+scatter(params.A_grid,c_fct_d[t,dₜ+1].(params.A_grid),label="v_d",color=:black,markersize=2)
+t=1
+scatter!(params.A_grid,c_fct_d[t,dₜ+1].(params.A_grid),label="v_d",color=:red,markersize=2)
+
+
 
 
 

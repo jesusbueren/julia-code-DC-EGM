@@ -48,6 +48,7 @@
         # Unpack parameters
         nkk=params.nkk
         ind = ones(Int, nkk)  # 1 means keep, 0 means discard
+        ϵ_c=params.ϵ_c
 
 
         # Arrays to store extra M_star points and their interpolated values
@@ -58,6 +59,7 @@
         limit_left=0
         limit_right=0
         eps = 1e-6
+
         # Helper: perform first-order Taylor approximation at `target` using closest to `bound`
         function taylor_approx(bound, target, direction)
             step = direction == :right ? 1 : -1
@@ -109,6 +111,7 @@
             return y1 + slope * (x_star - x1)
         end
 
+
         # Main loop
         for i in 1:nkk-1
             if m_grid[i+1] < m_grid[i]
@@ -118,40 +121,42 @@
                 #Trim left
                 trim!(i,:left)
 
-                #Compute intersection
-                α1_1=u_prime(c[limit_left],params)
-                α1_2=u_prime(c[limit_right],params)
-                α2_1=v[limit_left] - α1_1 * m_grid[limit_left]
-                α2_2=v[limit_right] - α1_2 * m_grid[limit_right]
-                M_star=(α2_2-α2_1)/(α1_1-α1_2)
-                v_star = α1_1 * M_star + α2_1
+                if limit_left>0
+                    #Compute intersection
+                    α1_1=u_prime(c[limit_left],params)
+                    α1_2=u_prime(c[limit_right],params)
+                    α2_1=v[limit_left] - α1_1 * m_grid[limit_left]
+                    α2_2=v[limit_right] - α1_2 * m_grid[limit_right]
+                    M_star=(α2_2-α2_1)/(α1_1-α1_2)
+                    v_star = α1_1 * M_star + α2_1
 
-                # Left extrapolation for c
-                if limit_left >= 2
-                    c_L = linear_extrap(m_grid[limit_left-1], c[limit_left-1],
-                                        m_grid[limit_left], c[limit_left],
-                                        M_star - eps)
-                else
-                    c_L = c[limit_left]  # fallback if no left point
+                    # Left extrapolation for c
+                    if limit_left >= 2
+                        c_L = linear_extrap(m_grid[limit_left-1], c[limit_left-1],
+                                            m_grid[limit_left], c[limit_left],
+                                            M_star - eps)
+                    else
+                        c_L = c[limit_left]  # fallback if no left point
+                    end
+
+                    # Right extrapolation for c
+                    if limit_right + 1 <= nkk
+                        c_R = linear_extrap(m_grid[limit_right], c[limit_right],
+                                            m_grid[limit_right+1], c[limit_right+1],
+                                            M_star + eps)
+                    else
+                        c_R = c[limit_right]  # fallback if no right point
+                    end
+
+                    # Store both sides
+                    push!(m_star_list, M_star - eps)
+                    push!(c_star_list, c_L)
+                    push!(v_star_list, v_star)
+
+                    push!(m_star_list, M_star + eps)
+                    push!(c_star_list, c_R)
+                    push!(v_star_list, v_star)
                 end
-
-                # Right extrapolation for c
-                if limit_right + 1 <= nkk
-                    c_R = linear_extrap(m_grid[limit_right], c[limit_right],
-                                        m_grid[limit_right+1], c[limit_right+1],
-                                        M_star + eps)
-                else
-                    c_R = c[limit_right]  # fallback if no right point
-                end
-
-                # Store both sides
-                push!(m_star_list, M_star - eps)
-                push!(c_star_list, c_L)
-                push!(v_star_list, v_star)
-
-                push!(m_star_list, M_star + eps)
-                push!(c_star_list, c_R)
-                push!(v_star_list, v_star)
                 #println(M_star)
             end
         end
@@ -175,7 +180,7 @@
 
         # Final splines
         pol_c_new = Spline1D(vcat(0.0, m_all_sorted), vcat(0.0, c_all_sorted), k=1, bc="extrapolate")
-        V_new     = Spline1D(m_all_sorted, v_all_sorted, k=1, bc="extrapolate")
+        V_new     = Spline1D(vcat(0.0,m_all_sorted), vcat(u(ϵ_c,1,params),v_all_sorted), k=1, bc="extrapolate")
 
         return pol_c_new, V_new
     end
